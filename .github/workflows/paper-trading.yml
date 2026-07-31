@@ -26,11 +26,5 @@ jobs:
           ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m live.scheduler
-
-      - name: Upload trading log
-        uses: actions/upload-artifact@v4
-        with:
-          name: trading-db-${{ github.run_id }}
-          path: live/trading.db
-          if-no-files-found: ignore

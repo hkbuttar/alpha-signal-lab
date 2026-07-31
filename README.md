@@ -160,7 +160,7 @@ Built as an event-driven simulator rather than a vectorized backtest, meaning th
 
 - **Execution venue**: Alpaca paper trading API (no real capital at risk).
 - **Cadence**: signal recomputed and orders placed daily via a scheduled GitHub Actions job.
-- **Logging**: every order, fill, and daily portfolio snapshot is logged to SQLite (`live/storage.py`, `live/trading.db`, gitignored) for later analysis and for the dashboard to read from.
+- **Logging**: every order, fill, and daily portfolio snapshot is logged to a hosted Postgres database (`live/storage.py`, connected via `DATABASE_URL`) for later analysis and for both dashboards to read from. This is deliberately not local SQLite: GitHub Actions runners are ephemeral and can't accumulate history run over run, and a React frontend deployed on Vercel can't read a local file at all — Postgres is reachable from all three places (the scheduler, the FastAPI backend, and a local Streamlit process) at once.
 - **Live vs. backtest reconciliation**: live paper P&L is compared against what the backtest would have predicted for the same period, to sanity-check that the production pipeline matches the research pipeline (a common failure mode is a subtle mismatch between backtest and live logic).
 
 ---
@@ -210,7 +210,14 @@ Live view of the strategy, showing:
 - Rolling Sharpe, drawdown, and VaR
 - Factor score breakdown per holding
 
-Built with Streamlit (`dashboard/app.py`), reading live state from SQLite and backtested equity/metrics from `backtest/results/`. Not yet deployed anywhere; run locally with `streamlit run dashboard/app.py`. Every section degrades to an empty-state message rather than crashing when live data doesn't exist yet, which is the current state (see Live Paper Trading above). The per-holding factor score breakdown is intentionally left to the research notebook rather than the dashboard (see the Factor Breakdown tab), since it requires a fresh factor computation and isn't cached anywhere the dashboard could read cheaply.
+Two presentation layers over the same data, not two separate implementations:
+
+- **React (`frontend/`), deployed on Vercel** — the primary, shareable dashboard. Talks to a FastAPI backend (`backend/main.py`) over a small read-only JSON API; the backend is a thin wrapper around `live/storage.py`, `backtest/results_io.py`, `backtest/metrics.py`, and `risk/`, so nothing about "what a rolling Sharpe is" is computed differently than in Streamlit. Charts built with Recharts.
+- **Streamlit (`dashboard/app.py`)** — kept as a local, zero-deploy option. Reads straight from the same Postgres database rather than a separate copy of the data.
+
+Both read live state from Postgres (`DATABASE_URL`) and backtested equity/metrics from `backtest/results/` (via `backtest/results_io.py`), and both degrade to an empty-state message rather than crashing when live data doesn't exist yet, which is the current state (see Live Paper Trading above). The per-holding factor score breakdown is intentionally left to the research notebook rather than either dashboard (see the Factor Breakdown tab), since it requires a fresh factor computation and isn't cached anywhere either dashboard could read cheaply.
+
+**Running locally**: `uvicorn backend.main:app --reload` (backend) + `cd frontend && npm run dev` (frontend, reads `VITE_API_BASE_URL` from `frontend/.env`), or just `streamlit run dashboard/app.py` for the simpler option. **Deploying**: Render (`render.yaml` at the repo root provisions the FastAPI service and a managed Postgres together) for the backend, Vercel (auto-detects the Vite app in `frontend/`) for the frontend — set `ALLOWED_ORIGINS` on Render to the Vercel URL, and `VITE_API_BASE_URL` on Vercel to the Render URL, once both exist.
 
 ---
 
@@ -221,9 +228,10 @@ Built with Streamlit (`dashboard/app.py`), reading live state from SQLite and ba
 - **Backtesting**: custom event-driven engine (no external backtest library, to keep full control over fill/cost assumptions)
 - **Execution**: Alpaca Trade API (paper)
 - **Scheduling**: GitHub Actions (cron), `.github/workflows/paper-trading.yml`
-- **Dashboard**: Streamlit + Plotly
-- **Deployment**: not yet deployed; run locally
-- **Storage**: SQLite
+- **Backend API**: FastAPI (`backend/main.py`), deployed on Render
+- **Dashboard**: React + Vite + TypeScript + Recharts (`frontend/`), deployed on Vercel; Streamlit + Plotly (`dashboard/app.py`) kept as a local option
+- **Deployment**: Render (backend + Postgres, via `render.yaml`), Vercel (frontend)
+- **Storage**: Postgres (Render managed)
 
 ---
 
@@ -238,6 +246,7 @@ python3.11 -m pip install -r requirements.txt --break-system-packages
 #   ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL=https://paper-api.alpaca.markets
 #   NEWSAPI_KEY
 #   LLM_API_KEY (for sentiment scoring)
+#   DATABASE_URL (Postgres; only needed for live/, backend/, or dashboard/app.py)
 cp .env.example .env
 
 # Run factor research
@@ -249,8 +258,12 @@ python -m backtest.engine --start 2020-01-01 --end 2025-01-01
 # Start live paper trading (scheduled via GitHub Actions, or run manually)
 python -m live.scheduler
 
-# Launch dashboard
+# Launch the Streamlit dashboard (simplest local option)
 streamlit run dashboard/app.py
+
+# Or run the React dashboard + its FastAPI backend
+uvicorn backend.main:app --reload
+cd frontend && cp .env.example .env && npm install && npm run dev
 ```
 
 ---
@@ -287,13 +300,16 @@ alpha-signal-lab/
 ├── config/            # universe.py: ticker list + sector map, single source of truth
 ├── data/              # price/news loaders (yfinance, Alpaca, NewsAPI), parquet cache
 ├── factors/           # momentum, mean_reversion, volatility, sentiment, composite, validation
-├── backtest/          # event-driven engine, portfolio ledger, fills, metrics
+├── backtest/          # event-driven engine, portfolio ledger, fills, metrics, results_io
 ├── risk/              # sizing, limits, VaR, kill-switch
-├── live/              # Alpaca client, SQLite storage, daily scheduler
-├── dashboard/         # Streamlit app
+├── live/              # Alpaca client, Postgres storage, daily scheduler
+├── backend/           # FastAPI app behind the React dashboard, deployed on Render
+├── frontend/          # React + Vite + TypeScript dashboard, deployed on Vercel
+├── dashboard/         # Streamlit app (local option)
 ├── notebooks/         # research.ipynb (pre-executed)
 ├── tests/             # mirrors the module structure above, all network calls mocked
 ├── .github/workflows/ # paper-trading.yml daily cron
+├── render.yaml         # Render Blueprint: FastAPI service + managed Postgres
 ├── CLAUDE.md
 ├── requirements.txt
 └── README.md

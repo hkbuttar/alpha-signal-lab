@@ -56,7 +56,9 @@ def get_connection() -> psycopg.Connection:
     return conn
 
 
-def log_order(conn: psycopg.Connection, date: str, ticker: str, shares: float, submitted_at: str) -> None:
+def log_order(
+    conn: psycopg.Connection, date: str, ticker: str, shares: float, submitted_at: str
+) -> None:
     with conn.cursor() as cur:
         cur.execute(
             "INSERT INTO orders (date, ticker, shares, submitted_at) VALUES (%s, %s, %s, %s)",
@@ -70,7 +72,8 @@ def log_fill(
 ) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO fills (date, ticker, shares, price, commission) VALUES (%s, %s, %s, %s, %s)",
+            "INSERT INTO fills (date, ticker, shares, price, commission) "
+            "VALUES (%s, %s, %s, %s, %s)",
             (date, ticker, shares, price, commission),
         )
     conn.commit()
@@ -90,13 +93,25 @@ def log_snapshot(
     conn.commit()
 
 
+def _fetch_df(conn: psycopg.Connection, query: str) -> pd.DataFrame:
+    # Not pd.read_sql_query: pandas only recognizes SQLAlchemy engines and
+    # sqlite3 connections as "supported" DBAPI2 objects and warns on anything
+    # else (including psycopg3, despite it working correctly) - fetching
+    # manually avoids that noise without pulling in SQLAlchemy for one query.
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        columns = [col.name for col in cur.description]
+    return pd.DataFrame(rows, columns=columns)
+
+
 def read_snapshots(conn: psycopg.Connection) -> pd.DataFrame:
-    return pd.read_sql_query("SELECT * FROM portfolio_snapshots ORDER BY date", conn)
+    return _fetch_df(conn, "SELECT * FROM portfolio_snapshots ORDER BY date")
 
 
 def read_fills(conn: psycopg.Connection) -> pd.DataFrame:
-    return pd.read_sql_query("SELECT * FROM fills ORDER BY date", conn)
+    return _fetch_df(conn, "SELECT * FROM fills ORDER BY date")
 
 
 def read_orders(conn: psycopg.Connection) -> pd.DataFrame:
-    return pd.read_sql_query("SELECT * FROM orders ORDER BY date", conn)
+    return _fetch_df(conn, "SELECT * FROM orders ORDER BY date")

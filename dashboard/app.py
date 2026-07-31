@@ -1,78 +1,68 @@
 """Streamlit dashboard: live paper-trading status vs. backtested expectation.
 
-Reads live state from live/storage.py's SQLite database and backtested
-equity/metrics from backtest/results/. Every section degrades gracefully to an
-empty-state message rather than crashing when live data doesn't exist yet
-(e.g. before the scheduler has ever run).
+Reads live state from live/storage.py's Postgres database (DATABASE_URL) and
+backtested equity/metrics from backtest/results/ via backtest/results_io.py
+(shared with backend/main.py, the FastAPI service behind the React dashboard,
+so the two presentation layers never compute things differently). Every
+section degrades gracefully to an empty-state message rather than crashing
+when live data doesn't exist yet (e.g. before the scheduler has ever run, or
+before DATABASE_URL is configured locally).
 """
 
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from backtest import results_io
 from config.universe import TICKER_SECTOR
 from live import storage
 from risk.kill_switch import running_drawdown
 from risk.var import historical_var, parametric_var
-
-BACKTEST_RUNS_DIR = Path(__file__).resolve().parent.parent / "backtest" / "results" / "runs"
-SAMPLE_METRICS_PATH = (
-    Path(__file__).resolve().parent.parent / "backtest" / "results" / "sample_metrics.json"
-)
 
 st.set_page_config(page_title="Alpha Signal Lab", layout="wide")
 
 
 @st.cache_data(ttl=60)
 def load_live_snapshots() -> pd.DataFrame:
-    if not storage.DB_PATH.exists():
+    try:
+        conn = storage.get_connection()
+    except KeyError:
         return pd.DataFrame()
-    conn = storage.get_connection()
-    df = storage.read_snapshots(conn)
-    conn.close()
+    try:
+        df = storage.read_snapshots(conn)
+    finally:
+        conn.close()
     if not df.empty:
         df["date"] = pd.to_datetime(df["date"])
     return df
-
-
-def list_backtest_runs() -> list[Path]:
-    if not BACKTEST_RUNS_DIR.exists():
-        return []
-    return sorted(p for p in BACKTEST_RUNS_DIR.iterdir() if p.is_dir())
-
-
-def load_backtest_run(run_dir: Path) -> tuple[pd.Series, dict]:
-    equity = pd.read_csv(run_dir / "equity_curve.csv", index_col=0, parse_dates=True)["equity"]
-    metrics = json.loads((run_dir / "metrics.json").read_text())
-    return equity, metrics
 
 
 st.title("Alpha Signal Lab")
 st.caption("Event-driven factor research and paper-trading dashboard.")
 
 live_snapshots = load_live_snapshots()
-runs = list_backtest_runs()
+runs = results_io.list_runs()
+
+if live_snapshots.empty and not runs:
+    st.sidebar.warning(
+        "No DATABASE_URL configured (or no live data yet) and no backtest runs found. "
+        "Set DATABASE_URL to the same Postgres instance the scheduler writes to, and/or "
+        "run `python -m backtest.engine` first."
+    )
 
 selected_backtest_equity = None
 selected_backtest_metrics = None
 if runs:
-    run_labels = [p.name for p in runs]
-    choice = st.sidebar.selectbox("Backtest run", run_labels, index=len(run_labels) - 1)
-    selected_backtest_equity, selected_backtest_metrics = load_backtest_run(
-        runs[run_labels.index(choice)]
-    )
-elif SAMPLE_METRICS_PATH.exists():
-    selected_backtest_metrics = json.loads(SAMPLE_METRICS_PATH.read_text())
-    st.sidebar.info(
-        "Showing the committed sample backtest metrics (no equity curve saved for this run)."
-    )
+    choice = st.sidebar.selectbox("Backtest run", runs, index=len(runs) - 1)
+    selected_backtest_equity, selected_backtest_metrics = results_io.load_run(choice)
 else:
-    st.sidebar.warning("No backtest runs found. Run `python -m backtest.engine` first.")
+    selected_backtest_metrics = results_io.load_sample_metrics()
+    if selected_backtest_metrics:
+        st.sidebar.info(
+            "Showing the committed sample backtest metrics (no equity curve saved for this run)."
+        )
 
 tab_equity, tab_positions, tab_risk, tab_factors = st.tabs(
     ["Equity Curve", "Positions & Exposure", "Rolling Risk", "Factor Breakdown"]
@@ -112,7 +102,7 @@ with tab_positions:
         st.info("No live positions yet. Run `python -m live.scheduler` to populate this.")
     else:
         latest = live_snapshots.iloc[-1]
-        positions = json.loads(latest["positions_json"])
+        positions = latest["positions_json"] or {}
         if not positions:
             st.info(f"No open positions as of {latest['date'].date()}.")
         else:

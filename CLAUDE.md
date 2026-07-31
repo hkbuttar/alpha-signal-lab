@@ -29,24 +29,33 @@ jupyter notebook notebooks/research.ipynb
 # Start live paper trading scheduler
 python -m live.scheduler
 
-# Launch dashboard
+# Launch Streamlit dashboard (local)
 streamlit run dashboard/app.py
+
+# Run the FastAPI backend (behind the React dashboard)
+uvicorn backend.main:app --reload
+
+# Run the React dashboard
+cd frontend && npm run dev
 ```
 
 ## Environment
 - Python 3.11. Always install packages with `python3.11 -m pip install <pkg> --break-system-packages`, not plain `pip`.
-- Required env vars (see `.env.example`): `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper endpoint), `NEWSAPI_KEY`, `LLM_API_KEY`.
-- Never commit `.env` or any real API keys.
+- Required env vars (see `.env.example`): `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` (paper endpoint), `NEWSAPI_KEY`, `LLM_API_KEY`, `DATABASE_URL` (Postgres, shared by `live/`, `backend/`, and locally by `dashboard/`), `ALLOWED_ORIGINS` (backend CORS).
+- Frontend env var: `frontend/.env` → `VITE_API_BASE_URL` (see `frontend/.env.example`).
+- Never commit `.env`/`frontend/.env` or any real API keys.
 
 ## Repo map
 - `data/` — data loaders (price + news). New data sources go here.
 - `factors/` — one file per factor. New factors must follow the interface in `composite.py` (take a price/news panel, return a cross-sectional score per ticker per day).
-- `backtest/` — event-driven simulator. Must stay bar-by-bar / point-in-time; no vectorized shortcuts that could introduce look-ahead bias.
+- `backtest/` — event-driven simulator. Must stay bar-by-bar / point-in-time; no vectorized shortcuts that could introduce look-ahead bias. `results_io.py` is shared read/list logic for committed runs, used by both dashboards.
 - `risk/` — position sizing and kill-switch logic.
-- `live/` — Alpaca order execution and scheduling.
-- `dashboard/` — Streamlit app.
+- `live/` — Alpaca order execution and scheduling. `storage.py` is the single source of truth for the Postgres schema; both dashboards read through it, never around it.
+- `backend/` — FastAPI app (deployed on Render) behind the React dashboard. Thin HTTP wrapper only — no business logic that doesn't already live in `live/`, `backtest/`, or `risk/`.
+- `dashboard/` — Streamlit app (local use).
+- `frontend/` — Vite + React + TypeScript app (deployed on Vercel), the primary dashboard.
 - `notebooks/` — research notebooks, keep outputs committed (pre-executed).
-- `tests/` — mirrors the module structure above.
+- `tests/` — mirrors the module structure above (`tests/backend/` covers the FastAPI layer).
 
 ## Boundaries — do not touch without explicit confirmation
 - `live/alpaca_client.py` — places real (paper) orders. Any change to order logic, sizing, or execution triggers needs a human review before merging, even though it's paper money.

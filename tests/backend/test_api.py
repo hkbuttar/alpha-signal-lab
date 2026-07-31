@@ -100,7 +100,10 @@ def test_backtest_run_found_returns_equity_and_metrics(monkeypatch):
 
 def test_rolling_risk_empty_below_min_history(monkeypatch):
     df = _snapshots(
-        [{"date": d, "equity": 1_000_000.0, "cash": 0.0, "positions_json": {}} for d in ["2024-01-02", "2024-01-03"]]
+        [
+            {"date": d, "equity": 1_000_000.0, "cash": 0.0, "positions_json": {}}
+            for d in ["2024-01-02", "2024-01-03"]
+        ]
     )
     monkeypatch.setattr(main, "_snapshots_df", lambda: df)
     resp = client.get("/api/risk/rolling")
