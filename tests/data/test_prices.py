@@ -14,7 +14,7 @@ class _FakeStockHistoricalDataClient:
 
     def get_stock_bars(self, request):
         symbol = request.symbol_or_symbols
-        dates = pd.bdate_range("2022-01-03", "2022-01-07")
+        dates = pd.bdate_range("2022-01-03", "2022-01-07", tz="UTC")
         idx = pd.MultiIndex.from_product([[symbol], dates], names=["symbol", "timestamp"])
         df = pd.DataFrame(
             {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 100},
@@ -89,3 +89,21 @@ def test_download_alpaca_returns_expected_columns(monkeypatch):
     assert list(result.columns) == prices.PRICE_COLUMNS
     assert not result.columns.duplicated().any()
     assert (result["ticker"] == "AAA").all()
+    assert result["date"].dt.tz is None
+
+
+def test_load_prices_alpaca_source_end_to_end(monkeypatch, tmp_path):
+    import alpaca.data.historical as alpaca_historical
+
+    monkeypatch.setattr(prices, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        alpaca_historical, "StockHistoricalDataClient", _FakeStockHistoricalDataClient
+    )
+    monkeypatch.setenv("ALPACA_API_KEY", "test")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "test")
+
+    result = prices.load_prices(["AAA"], "2022-01-03", "2022-01-10", source="alpaca")
+
+    assert list(result.columns) == prices.PRICE_COLUMNS
+    assert (result["date"] >= pd.Timestamp("2022-01-03")).all()
+    assert (result["date"] < pd.Timestamp("2022-01-10")).all()

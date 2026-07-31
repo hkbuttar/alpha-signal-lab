@@ -92,7 +92,7 @@ def _download_alpaca(ticker: str, start: str, end: str) -> pd.DataFrame:
     bars = client.get_stock_bars(request).df.reset_index()
     if bars.empty:
         return _empty_price_frame()
-    bars["date"] = pd.to_datetime(bars["timestamp"]).dt.normalize()
+    bars["date"] = pd.to_datetime(bars["timestamp"]).dt.tz_convert(None).dt.normalize()
     return bars.rename(columns={"symbol": "ticker"})[PRICE_COLUMNS]
 
 
