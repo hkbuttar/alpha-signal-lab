@@ -35,23 +35,30 @@ The strategy also folds in a non-price signal, LLM-scored news sentiment, to tes
 
 ## System Architecture
 
-```
- Data Sources          Factor Layer         Signal Layer        Backtest Engine        Live Trading
-┌──────────────┐    ┌───────────────┐    ┌───────────────┐   ┌──────────────────┐   ┌────────────────┐
-│ OHLCV (daily)│───▶│ Momentum      │───▶│ Composite     │──▶│ Event-driven sim  │──▶│ Alpaca API      │
-│ News headlines│───▶│ Mean-reversion│    │ scoring/rank  │   │ (fills, slippage, │   │ (paper orders)  │
-│              │    │ Volatility    │    │               │   │  costs)           │   │                 │
-│              │    │ LLM sentiment │    │               │   │                   │   │                 │
-└──────────────┘    └───────────────┘    └───────────────┘   └──────────┬────────┘   └────────┬────────┘
-                                                                          │                      │
-                                                                          ▼                      ▼
-                                                                 ┌─────────────────────────────────────┐
-                                                                 │   Risk Layer (sizing, VaR, kill-switch)│
-                                                                 └──────────────────┬──────────────────┘
-                                                                                    ▼
-                                                                          ┌──────────────────┐
-                                                                          │ Dashboard (live)  │
-                                                                          └──────────────────┘
+```mermaid
+flowchart LR
+    A1[OHLCV daily] --> F1
+    A2[News headlines] --> F2
+
+    subgraph Factor Layer
+        F1[Momentum]
+        F2[Mean-reversion]
+        F3[Volatility]
+        F4[LLM sentiment]
+    end
+
+    F1 --> S[Composite score / rank]
+    F2 --> S
+    F3 --> S
+    F4 --> S
+
+    S --> B[Event-driven backtest sim<br/>fills, slippage, costs]
+    B --> L[Alpaca API<br/>paper orders]
+
+    B --> R[Risk layer<br/>sizing, VaR, kill-switch]
+    L --> R
+
+    R --> D[Dashboard live]
 ```
 
 Data flows one direction: raw data → factors → combined signal → simulated or live execution → risk overlay → reporting. Each stage is a separate module so factors, execution logic, and risk rules can be tested independently.
