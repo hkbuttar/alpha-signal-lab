@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: alpha-signal-lab-api
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alpha-signal-lab-db
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        sync: false # set to your Vercel deployment URL(s), comma-separated, after the frontend is deployed
+      - key: PYTHON_VERSION
+        value: 3.11.9
+
+databases:
+  - name: alpha-signal-lab-db
+    plan: free
