@@ -3,6 +3,26 @@ import pandas as pd
 from data import prices
 
 
+class _FakeBarsResult:
+    def __init__(self, df):
+        self.df = df
+
+
+class _FakeStockHistoricalDataClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def get_stock_bars(self, request):
+        symbol = request.symbol_or_symbols
+        dates = pd.bdate_range("2022-01-03", "2022-01-07")
+        idx = pd.MultiIndex.from_product([[symbol], dates], names=["symbol", "timestamp"])
+        df = pd.DataFrame(
+            {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 100},
+            index=idx,
+        )
+        return _FakeBarsResult(df)
+
+
 def _fake_downloader(calls):
     def _download(ticker, start, end):
         calls["count"] += 1
@@ -53,3 +73,19 @@ def test_disabling_cache_always_redownloads(monkeypatch, tmp_path):
     prices.load_prices(["AAA"], "2022-01-03", "2022-01-10", source="yfinance", use_cache=False)
     prices.load_prices(["AAA"], "2022-01-03", "2022-01-10", source="yfinance", use_cache=False)
     assert calls["count"] == 2
+
+
+def test_download_alpaca_returns_expected_columns(monkeypatch):
+    import alpaca.data.historical as alpaca_historical
+
+    monkeypatch.setattr(
+        alpaca_historical, "StockHistoricalDataClient", _FakeStockHistoricalDataClient
+    )
+    monkeypatch.setenv("ALPACA_API_KEY", "test")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "test")
+
+    result = prices._download_alpaca("AAA", "2022-01-03", "2022-01-10")
+
+    assert list(result.columns) == prices.PRICE_COLUMNS
+    assert not result.columns.duplicated().any()
+    assert (result["ticker"] == "AAA").all()

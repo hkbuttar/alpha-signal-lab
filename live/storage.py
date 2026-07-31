@@ -1,95 +1,102 @@
-"""SQLite logging for the live paper-trading loop.
+"""Postgres logging for the live paper-trading loop.
 
 Every order, fill, and daily portfolio snapshot is logged here for later
-analysis and for the dashboard to read from. No ORM: the schema is small and
-stable enough that raw SQL is more legible than an abstraction over it.
+analysis and for the dashboards (Streamlit and the FastAPI backend behind the
+React dashboard) to read from. No ORM: the schema is small and stable enough
+that raw SQL is more legible than an abstraction over it.
+
+Connects via ``DATABASE_URL`` (Render's standard convention for its managed
+Postgres). This is shared, persistent storage reachable from the GitHub
+Actions scheduler, the FastAPI backend, and a local Streamlit process alike,
+which is the whole point: a local SQLite file can't be reached from all three.
 """
 
 from __future__ import annotations
 
-import json
-import sqlite3
-from pathlib import Path
+import os
 
 import pandas as pd
-
-DB_PATH = Path(__file__).resolve().parent / "trading.db"
+import psycopg
+from psycopg.types.json import Json
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
     ticker TEXT NOT NULL,
-    shares REAL NOT NULL,
-    submitted_at TEXT NOT NULL
+    shares DOUBLE PRECISION NOT NULL,
+    submitted_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS fills (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
     ticker TEXT NOT NULL,
-    shares REAL NOT NULL,
-    price REAL NOT NULL,
-    commission REAL NOT NULL
+    shares DOUBLE PRECISION NOT NULL,
+    price DOUBLE PRECISION NOT NULL,
+    commission DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL UNIQUE,
-    equity REAL NOT NULL,
-    cash REAL NOT NULL,
-    positions_json TEXT NOT NULL
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    equity DOUBLE PRECISION NOT NULL,
+    cash DOUBLE PRECISION NOT NULL,
+    positions_json JSONB NOT NULL
 );
 """
 
 
-def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.executescript(SCHEMA)
+def get_connection() -> psycopg.Connection:
+    """Connect using DATABASE_URL and ensure the schema exists."""
+    conn = psycopg.connect(os.environ["DATABASE_URL"])
+    with conn.cursor() as cur:
+        cur.execute(SCHEMA)
+    conn.commit()
     return conn
 
 
-def log_order(
-    conn: sqlite3.Connection, date: str, ticker: str, shares: float, submitted_at: str
-) -> None:
-    conn.execute(
-        "INSERT INTO orders (date, ticker, shares, submitted_at) VALUES (?, ?, ?, ?)",
-        (date, ticker, shares, submitted_at),
-    )
+def log_order(conn: psycopg.Connection, date: str, ticker: str, shares: float, submitted_at: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO orders (date, ticker, shares, submitted_at) VALUES (%s, %s, %s, %s)",
+            (date, ticker, shares, submitted_at),
+        )
     conn.commit()
 
 
 def log_fill(
-    conn: sqlite3.Connection, date: str, ticker: str, shares: float, price: float, commission: float
+    conn: psycopg.Connection, date: str, ticker: str, shares: float, price: float, commission: float
 ) -> None:
-    conn.execute(
-        "INSERT INTO fills (date, ticker, shares, price, commission) VALUES (?, ?, ?, ?, ?)",
-        (date, ticker, shares, price, commission),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO fills (date, ticker, shares, price, commission) VALUES (%s, %s, %s, %s, %s)",
+            (date, ticker, shares, price, commission),
+        )
     conn.commit()
 
 
 def log_snapshot(
-    conn: sqlite3.Connection, date: str, equity: float, cash: float, positions: dict[str, float]
+    conn: psycopg.Connection, date: str, equity: float, cash: float, positions: dict[str, float]
 ) -> None:
-    conn.execute(
-        """INSERT INTO portfolio_snapshots (date, equity, cash, positions_json)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(date) DO UPDATE SET equity=excluded.equity, cash=excluded.cash,
-               positions_json=excluded.positions_json""",
-        (date, equity, cash, json.dumps(positions)),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO portfolio_snapshots (date, equity, cash, positions_json)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (date) DO UPDATE SET equity = excluded.equity, cash = excluded.cash,
+                   positions_json = excluded.positions_json""",
+            (date, equity, cash, Json(positions)),
+        )
     conn.commit()
 
 
-def read_snapshots(conn: sqlite3.Connection) -> pd.DataFrame:
+def read_snapshots(conn: psycopg.Connection) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM portfolio_snapshots ORDER BY date", conn)
 
 
-def read_fills(conn: sqlite3.Connection) -> pd.DataFrame:
+def read_fills(conn: psycopg.Connection) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM fills ORDER BY date", conn)
 
 
-def read_orders(conn: sqlite3.Connection) -> pd.DataFrame:
+def read_orders(conn: psycopg.Connection) -> pd.DataFrame:
     return pd.read_sql_query("SELECT * FROM orders ORDER BY date", conn)
