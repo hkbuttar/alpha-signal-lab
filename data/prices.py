@@ -74,6 +74,7 @@ def _download_yfinance(ticker: str, start: str, end: str) -> pd.DataFrame:
 
 
 def _download_alpaca(ticker: str, start: str, end: str) -> pd.DataFrame:
+    from alpaca.data.enums import DataFeed
     from alpaca.data.historical import StockHistoricalDataClient
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
@@ -82,7 +83,11 @@ def _download_alpaca(ticker: str, start: str, end: str) -> pd.DataFrame:
         os.environ["ALPACA_API_KEY"], os.environ["ALPACA_SECRET_KEY"]
     )
     request = StockBarsRequest(
-        symbol_or_symbols=ticker, timeframe=TimeFrame.Day, start=start, end=end
+        symbol_or_symbols=ticker,
+        timeframe=TimeFrame.Day,
+        start=start,
+        end=end,
+        feed=DataFeed.IEX,
     )
     bars = client.get_stock_bars(request).df.reset_index()
     if bars.empty:
