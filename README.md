@@ -73,6 +73,26 @@ Data flows one direction: raw data → factors → combined signal → simulated
 - **Point-in-time discipline**: all data is timestamped and joined so that on any given simulated day, the strategy only accesses information dated on or before that day. This is the most common source of inflated backtest results, so it's treated as a hard constraint, not an afterthought.
 - **Survivorship bias**: [note whether your universe includes delisted/acquired names — if not, disclose this as a known limitation]
 
+### Data Access
+
+**Price data**
+- **Alpaca Market Data API** — primary source. Real-time and historical equity data (up to 6+ years), bundled with the same account used for paper trading, so one API key covers both data and execution. The free Basic plan is zero-cost and sufficient for this project (IEX-feed real-time data, full historical bars).
+- **yfinance** (`pip install yfinance`) — used for fast local prototyping in the research notebooks; no API key required. Backtest/research work starts here since it's the quickest to iterate with.
+- **Polygon.io** — optional secondary source for cross-checking Alpaca data or finer intraday granularity later. Free tier available with rate limits.
+
+**News data**
+- **NewsAPI.org** — free developer tier, headline search by keyword/ticker/date. Used as the input to the LLM sentiment factor.
+- **Alpaca News API** — bundled Benzinga-sourced news feed, available under the same Alpaca account as the price data.
+- **Polygon news endpoint** — optional, ties in if already using Polygon for prices.
+
+**Account setup**
+1. Create a free Alpaca account at [alpaca.markets](https://alpaca.markets) — paper trading only, no funding required, available globally with just an email signup.
+2. Generate an API key/secret from the Alpaca dashboard (paper trading keys, not live).
+3. Sign up for a free NewsAPI key at [newsapi.org](https://newsapi.org).
+4. Store all keys in a local `.env` file (never committed) — see [Setup & Usage](#setup--usage) for the expected variable names.
+
+**Suggested split**: use `yfinance` for the Week 1 research/backtest notebooks (fastest to prototype with), then switch the live pipeline over to Alpaca's data API in Week 3, since order execution already requires an Alpaca account — using the same provider for both backtest-replay and live data reduces the risk of a mismatch between the two.
+
 ---
 
 ## Factor Methodology
@@ -203,8 +223,11 @@ git clone <repo-url>
 cd alpha-platform
 python3.11 -m pip install -r requirements.txt
 
-# Configure API keys
-cp .env.example .env   # add Alpaca keys, news API key, LLM API key
+# Configure API keys — see .env.example for required variables:
+#   ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL=https://paper-api.alpaca.markets
+#   NEWSAPI_KEY
+#   LLM_API_KEY (for sentiment scoring)
+cp .env.example .env
 
 # Run factor research
 jupyter notebook notebooks/research.ipynb
