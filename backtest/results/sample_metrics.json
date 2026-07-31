@@ -1,0 +1,21 @@
+{
+  "run": "2020-01-01 to 2025-01-01, weekly rebalance, 49-name universe",
+  "full_period": {
+    "cagr": 0.015216217521196063,
+    "sharpe_ratio": 0.26608877488714733,
+    "sortino_ratio": 0.13812217219297554,
+    "max_drawdown": 0.15138549416182567,
+    "win_rate": 0.10898965791567224,
+    "avg_holding_period_days": 19.04,
+    "kill_switch_triggered": true
+  },
+  "pre_kill_switch": {
+    "window": "2020-01-02 to 2020-12-10",
+    "trading_days": 239,
+    "cagr": 0.08212988040011338,
+    "sharpe_ratio": 0.607074478686548,
+    "sortino_ratio": 0.7250015484396372,
+    "max_drawdown": 0.1513854941618259,
+    "win_rate": 0.5714285714285714
+  }
+}

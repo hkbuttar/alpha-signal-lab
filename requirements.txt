@@ -1,0 +1,16 @@
+pandas>=2.1
+numpy>=1.26
+scipy>=1.11
+pyarrow>=14.0
+yfinance>=0.2.40
+alpaca-py>=0.30
+openai>=1.40
+python-dotenv>=1.0
+streamlit>=1.35
+plotly>=5.22
+matplotlib>=3.8
+pytest>=8.0
+ruff>=0.6
+jupyter>=1.0
+nbformat>=5.10
+nbconvert>=7.16
