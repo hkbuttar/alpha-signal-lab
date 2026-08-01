@@ -309,7 +309,7 @@ alpha-signal-lab/
 ├── notebooks/         # research.ipynb (pre-executed)
 ├── tests/             # mirrors the module structure above, all network calls mocked
 ├── .github/workflows/ # paper-trading.yml daily cron
-├── render.yaml         # Render Blueprint: FastAPI service + managed Postgres
+├── render.yaml        # Render Blueprint: FastAPI service + managed Postgres
 ├── CLAUDE.md
 ├── requirements.txt
 └── README.md
