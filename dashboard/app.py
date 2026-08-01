@@ -11,9 +11,19 @@ before DATABASE_URL is configured locally).
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+# Streamlit's script runner puts this file's own directory (dashboard/) at the
+# front of sys.path, not the repo root, so sibling top-level packages like
+# backtest/, config/, live/, risk/ aren't importable without this on platforms
+# (e.g. Streamlit Community Cloud) that don't already have the repo root on
+# sys.path some other way.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backtest import results_io
 from config.universe import TICKER_SECTOR
