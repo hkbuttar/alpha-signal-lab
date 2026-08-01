@@ -93,6 +93,10 @@ def run_daily() -> None:
         raw_weights = size_portfolio(longs, shorts, returns_wide, target_vol=TARGET_VOL)
         target_weights = apply_limits(raw_weights, TICKER_SECTOR)
         target_shares = (target_weights * equity / close_wide.loc[latest_date]).dropna()
+        # Alpaca rejects fractional orders that open or hold a short position, so
+        # short-side targets must land on a whole share count; longs can stay fractional.
+        short_in_target = target_shares.index.intersection(shorts)
+        target_shares.loc[short_in_target] = target_shares.loc[short_in_target].round()
 
     current_shares = pd.Series(current_positions, dtype=float)
     all_tickers = target_shares.index.union(current_shares.index)
