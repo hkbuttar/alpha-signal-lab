@@ -213,11 +213,11 @@ Live view of the strategy, showing:
 Two presentation layers over the same data, not two separate implementations:
 
 - **React (`frontend/`), deployed on Vercel** — the primary, shareable dashboard. Talks to a FastAPI backend (`backend/main.py`) over a small read-only JSON API; the backend is a thin wrapper around `live/storage.py`, `backtest/results_io.py`, `backtest/metrics.py`, and `risk/`, so nothing about "what a rolling Sharpe is" is computed differently than in Streamlit. Charts built with Recharts.
-- **Streamlit (`dashboard/app.py`)** — kept as a local, zero-deploy option. Reads straight from the same Postgres database rather than a separate copy of the data.
+- **Streamlit (`dashboard/app.py`)**, deployed on [Streamlit Community Cloud](https://alpha-signal-lab.streamlit.app/) — a simpler, zero-frontend-build alternative view. Reads straight from the same Postgres database rather than a separate copy of the data.
 
 Both read live state from Postgres (`DATABASE_URL`) and backtested equity/metrics from `backtest/results/` (via `backtest/results_io.py`), and both degrade to an empty-state message rather than crashing when live data doesn't exist yet, which is the current state (see Live Paper Trading above). The per-holding factor score breakdown is intentionally left to the research notebook rather than either dashboard (see the Factor Breakdown tab), since it requires a fresh factor computation and isn't cached anywhere either dashboard could read cheaply.
 
-**Running locally**: `uvicorn backend.main:app --reload` (backend) + `cd frontend && npm run dev` (frontend, reads `VITE_API_BASE_URL` from `frontend/.env`), or just `streamlit run dashboard/app.py` for the simpler option. **Deploying**: Render (`render.yaml` at the repo root provisions the FastAPI service and a managed Postgres together) for the backend, Vercel (auto-detects the Vite app in `frontend/`) for the frontend — set `ALLOWED_ORIGINS` on Render to the Vercel URL, and `VITE_API_BASE_URL` on Vercel to the Render URL, once both exist.
+**Running locally**: `uvicorn backend.main:app --reload` (backend) + `cd frontend && npm run dev` (frontend, reads `VITE_API_BASE_URL` from `frontend/.env`), or just `streamlit run dashboard/app.py` for the simpler option. **Deploying**: Render (`render.yaml` at the repo root provisions the FastAPI service and a managed Postgres together) for the backend, Vercel (auto-detects the Vite app in `frontend/`) for the frontend, Streamlit Community Cloud (`dashboard/app.py` as the main file, `DATABASE_URL` set as a secret) for the Streamlit dashboard — set `ALLOWED_ORIGINS` on Render to the Vercel URL, and `VITE_API_BASE_URL` on Vercel to the Render URL, once both exist.
 
 ---
 
@@ -229,8 +229,8 @@ Both read live state from Postgres (`DATABASE_URL`) and backtested equity/metric
 - **Execution**: Alpaca Trade API (paper)
 - **Scheduling**: GitHub Actions (cron), `.github/workflows/paper-trading.yml`
 - **Backend API**: FastAPI (`backend/main.py`), deployed on Render
-- **Dashboard**: React + Vite + TypeScript + Recharts (`frontend/`), deployed on Vercel; Streamlit + Plotly (`dashboard/app.py`) kept as a local option
-- **Deployment**: Render (backend + Postgres, via `render.yaml`), Vercel (frontend)
+- **Dashboard**: React + Vite + TypeScript + Recharts (`frontend/`), deployed on Vercel; Streamlit + Plotly (`dashboard/app.py`), deployed on Streamlit Community Cloud
+- **Deployment**: Render (backend + Postgres, via `render.yaml`), Vercel (frontend), Streamlit Community Cloud (Streamlit dashboard)
 - **Storage**: Postgres (Render managed)
 
 ---
@@ -305,7 +305,7 @@ alpha-signal-lab/
 ├── live/              # Alpaca client, Postgres storage, daily scheduler
 ├── backend/           # FastAPI app behind the React dashboard, deployed on Render
 ├── frontend/          # React + Vite + TypeScript dashboard, deployed on Vercel
-├── dashboard/         # Streamlit app (local option)
+├── dashboard/         # Streamlit app, deployed on Streamlit Community Cloud
 ├── notebooks/         # research.ipynb (pre-executed)
 ├── tests/             # mirrors the module structure above, all network calls mocked
 ├── .github/workflows/ # paper-trading.yml daily cron
