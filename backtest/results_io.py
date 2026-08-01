@@ -33,7 +33,12 @@ def load_run(run_name: str) -> tuple[pd.Series, dict]:
 
 
 def load_sample_metrics() -> dict | None:
-    """The one committed sample run's metrics, for when no local run/ dirs exist."""
+    """The one committed sample run's full-period metrics, for when no local run/ dirs exist.
+
+    Returns the same flat {metric_name: value} shape as ``load_run``'s metrics dict
+    (sample_metrics.json additionally wraps this in a "run" description and a
+    "pre_kill_switch" sub-window breakdown, which callers here don't render).
+    """
     if not SAMPLE_METRICS_PATH.exists():
         return None
-    return json.loads(SAMPLE_METRICS_PATH.read_text())
+    return json.loads(SAMPLE_METRICS_PATH.read_text())["full_period"]
