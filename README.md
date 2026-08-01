@@ -2,7 +2,7 @@
 
 A factor-based signal research pipeline, event-driven backtesting engine, and live paper-trading system for systematic equity strategies. Built to demonstrate the full path from research to production: signal construction, walk-forward validation, risk-controlled execution, and live monitoring.
 
-> **Status**: Backtest complete (sample run committed under `backtest/results/`). Not yet live on paper trading — `live/` is built and unit-tested but has never been run against a funded Alpaca paper account.
+> **Status**: Backtest complete (run committed under `backtest/results/`). Live on paper trading — running daily against a funded Alpaca paper account via a scheduled GitHub Actions job, with results tracked on both dashboards.
 
 ---
 
