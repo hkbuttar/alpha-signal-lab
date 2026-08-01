@@ -17,8 +17,18 @@ type EquityChartProps = {
 }
 
 type MergedPoint = { date: string; live?: number; backtested?: number }
+type EquityPoint = { date: string; equity: number }
 
-function mergeSeries(live: Snapshot[], backtest: { date: string; equity: number }[]): MergedPoint[] {
+// Live paper trading and backtests start from different capital bases, so raw
+// dollar equity isn't comparable between them - index each series to its own
+// first value and plot % return instead.
+function toIndexedReturns(points: EquityPoint[]): EquityPoint[] {
+  if (points.length === 0) return []
+  const base = points[0].equity
+  return points.map((p) => ({ date: p.date, equity: base ? (p.equity / base - 1) * 100 : 0 }))
+}
+
+function mergeSeries(live: EquityPoint[], backtest: EquityPoint[]): MergedPoint[] {
   const byDate = new Map<string, MergedPoint>()
   for (const point of backtest) {
     byDate.set(point.date, { date: point.date, backtested: point.equity })
@@ -31,18 +41,14 @@ function mergeSeries(live: Snapshot[], backtest: { date: string; equity: number 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
+const percentFormatter = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
 export function EquityChart({ liveSnapshots, backtestEquity }: EquityChartProps) {
   if (liveSnapshots.length === 0 && backtestEquity.length === 0) {
     return <EmptyState message="No equity data yet. Run a backtest and/or the live scheduler." />
   }
 
-  const data = mergeSeries(liveSnapshots, backtestEquity)
+  const data = mergeSeries(toIndexedReturns(liveSnapshots), toIndexedReturns(backtestEquity))
 
   return (
     <ResponsiveContainer width="100%" height={320}>
@@ -57,7 +63,7 @@ export function EquityChart({ liveSnapshots, backtestEquity }: EquityChartProps)
         <YAxis
           stroke="var(--baseline)"
           tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-          tickFormatter={(v: number) => currencyFormatter.format(v)}
+          tickFormatter={(v: number) => percentFormatter(v)}
           width={80}
         />
         <Tooltip
@@ -68,7 +74,7 @@ export function EquityChart({ liveSnapshots, backtestEquity }: EquityChartProps)
             fontSize: 13,
           }}
           labelStyle={{ color: 'var(--text-secondary)' }}
-          formatter={(value) => currencyFormatter.format(Number(value))}
+          formatter={(value) => percentFormatter(Number(value))}
         />
         <Legend wrapperStyle={{ fontSize: 13, color: 'var(--text-secondary)' }} />
         <Line

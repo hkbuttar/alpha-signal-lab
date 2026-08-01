@@ -49,6 +49,17 @@ def load_live_snapshots() -> pd.DataFrame:
     return df
 
 
+def _indexed_returns(series: pd.Series) -> pd.Series:
+    """Series indexed to its own first value, as % return.
+
+    Live paper trading and backtests start from different capital bases, so
+    raw dollar equity isn't comparable between them.
+    """
+    if series.empty or series.iloc[0] == 0:
+        return series * 0
+    return (series / series.iloc[0] - 1) * 100
+
+
 st.title("Alpha Signal Lab")
 st.caption("Event-driven factor research and paper-trading dashboard.")
 
@@ -85,7 +96,7 @@ with tab_equity:
         fig.add_trace(
             go.Scatter(
                 x=selected_backtest_equity.index,
-                y=selected_backtest_equity.values,
+                y=_indexed_returns(selected_backtest_equity).values,
                 name="Backtested expectation",
                 line={"dash": "dash"},
             )
@@ -93,12 +104,17 @@ with tab_equity:
         has_data = True
     if not live_snapshots.empty:
         fig.add_trace(
-            go.Scatter(x=live_snapshots["date"], y=live_snapshots["equity"], name="Live (paper)")
+            go.Scatter(
+                x=live_snapshots["date"],
+                y=_indexed_returns(live_snapshots["equity"]),
+                name="Live (paper)",
+            )
         )
         has_data = True
 
     if has_data:
-        fig.update_layout(title="Equity: live vs. backtested expectation", yaxis_title="Equity ($)")
+        fig.update_layout(title="Equity: live vs. backtested expectation", yaxis_title="Return (%)")
+        fig.update_yaxes(ticksuffix="%")
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No equity data yet. Run a backtest and/or `python -m live.scheduler`.")

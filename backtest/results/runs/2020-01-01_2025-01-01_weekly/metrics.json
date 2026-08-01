@@ -1,0 +1,9 @@
+{
+  "cagr": 0.015216217521196063,
+  "sharpe_ratio": 0.26608877488714733,
+  "sortino_ratio": 0.13812217219297554,
+  "max_drawdown": 0.15138549416182567,
+  "win_rate": 0.10898965791567224,
+  "avg_holding_period_days": 19.04,
+  "kill_switch_triggered": true
+}
