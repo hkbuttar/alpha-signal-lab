@@ -108,6 +108,9 @@ with tab_equity:
                 x=live_snapshots["date"],
                 y=_indexed_returns(live_snapshots["equity"]),
                 name="Live (paper)",
+                # Explicit rather than relying on Plotly's point-count-based
+                # default: a lone early point still needs a marker to be visible.
+                mode="lines+markers",
             )
         )
         has_data = True

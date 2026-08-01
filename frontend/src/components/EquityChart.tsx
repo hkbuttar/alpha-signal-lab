@@ -93,7 +93,10 @@ export function EquityChart({ liveSnapshots, backtestEquity }: EquityChartProps)
           name="Live (paper)"
           stroke="var(--series-1)"
           strokeWidth={2}
-          dot={false}
+          // Unlike the dense daily backtest line, live starts as one or a
+          // handful of points - a lone point draws neither a line segment nor
+          // (with dot disabled) a dot, so it'd be invisible without this.
+          dot={{ r: 3, strokeWidth: 0, fill: 'var(--series-1)' }}
           connectNulls
         />
       </LineChart>
