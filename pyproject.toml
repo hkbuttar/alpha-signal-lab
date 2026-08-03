@@ -1,3 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alpha-signal-lab"
+version = "0.1.0"
+description = "Shared config/factors/data consumed by streamalpha as an editable local dependency."
+requires-python = ">=3.11"
+
+# config: the shared ticker universe (config.universe).
+# factors, data: added for streamalpha's cross-reference analysis, which
+# needs to compute the *same* factor scores alpha-signal-lab would (not
+# reimplement them) to make "did a factor move sharply" mean anything.
+# Deliberately still excludes backtest/, risk/, live/: streamalpha has no
+# reason to depend on trading/execution/risk logic, only on how a factor
+# score is computed and how price history is loaded.
+[tool.setuptools]
+packages = ["config", "factors", "data"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
